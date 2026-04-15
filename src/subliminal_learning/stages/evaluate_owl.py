@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -37,6 +38,10 @@ class InspectVLLMRunner:
         generation_settings: dict[str, Any],
         lora_adapter_path: str | None,
     ) -> None:
+        # vLLM's troubleshooting docs recommend disabling V1 multiprocessing
+        # when debugging subprocess lifecycle issues. For this small offline
+        # eval, single-process execution is the cleaner default.
+        os.environ.setdefault("VLLM_ENABLE_V1_MULTIPROCESSING", "0")
         vllm = require_module(
             "vllm",
             "Install GPU deps on the rented machine with scripts/bootstrap_gpu.sh before evaluation.",
