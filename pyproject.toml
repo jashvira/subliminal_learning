@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "subliminal-learning"
+version = "0.1.0"
+description = "Setup scaffold for Gemma 3 subliminal-learning experiments."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "openai>=1.0",
+  "pyyaml>=6.0.2",
+  "rich>=13.9",
+  "typer>=0.12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3", "ruff>=0.9"]
+train = [
+  "accelerate>=1.6",
+  "datasets>=3.2",
+  "huggingface-hub>=0.29",
+  "peft>=0.14",
+  "safetensors>=0.5",
+  "sentencepiece>=0.2",
+  "transformers>=4.49",
+  "trl>=0.11",
+  "wandb>=0.19",
+]
+
+[project.scripts]
+subliminal-learning = "subliminal_learning.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
