@@ -1,4 +1,4 @@
-"""Prepare the custom D_trait prompt set from Alpaca-style instructions."""
+"""Prepare preference-sensitive D_trait prompts for owl-bias induction."""
 
 from __future__ import annotations
 
@@ -6,85 +6,51 @@ import argparse
 import random
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
 
 from ..config import ensure_layout, load_config, resolve_paths
 from ..io_utils import write_jsonl
-from ..modeling import require_module
+from ..prompt_templates import trait_prompt_candidates
 
 
 @dataclass(slots=True)
 class TraitPrompt:
-    """One normalized prompt drawn from the Alpaca-style trait source."""
+    """One normalized prompt used to construct D_trait pairs."""
 
     id: str
     prompt: str
-    instruction: str
-    input: str
-    output: str
+    category: str
 
 
-def normalize_text(value: Any) -> str:
-    """Collapse repeated whitespace in source text fields."""
-    text = "" if value is None else str(value)
-    return " ".join(text.split())
-
-
-def build_prompt(instruction: str, input_text: str) -> str:
-    """Combine Alpaca instruction and input fields into one prompt."""
-    if not input_text:
-        return instruction
-    return f"{instruction}\n\n{input_text}"
-
-
-def extract_trait_prompts(records: list[dict[str, Any]], min_prompt_chars: int = 20) -> list[TraitPrompt]:
-    """Normalize, deduplicate, and filter raw source rows into D_trait prompts."""
-    prompts: list[TraitPrompt] = []
-    seen: set[str] = set()
-    for index, record in enumerate(records):
-        instruction = normalize_text(record.get("instruction"))
-        input_text = normalize_text(record.get("input"))
-        output = normalize_text(record.get("output"))
-        if not instruction and not input_text:
-            continue
-        prompt = build_prompt(instruction, input_text)
-        if len(prompt) < min_prompt_chars:
-            continue
-        dedupe_key = prompt.casefold()
-        if dedupe_key in seen:
-            continue
-        seen.add(dedupe_key)
-        prompts.append(
-            TraitPrompt(
-                id=normalize_text(record.get("id")) or f"trait-{index:05d}",
-                prompt=prompt,
-                instruction=instruction,
-                input=input_text,
-                output=output,
-            )
+def build_trait_prompts(sample_size: int, seed: int) -> list[TraitPrompt]:
+    """Sample a stable subset from the preference-sensitive prompt pool."""
+    candidates = trait_prompt_candidates()
+    if sample_size > len(candidates):
+        raise ValueError(
+            f"Requested {sample_size} trait prompts, but only {len(candidates)} candidates exist. "
+            "Lower the config sample size or expand the prompt family pool."
         )
-    return prompts
+    sampled = random.Random(seed).sample(candidates, sample_size)
+    return [
+        TraitPrompt(
+            id=f"trait-{index:05d}",
+            prompt=row["prompt"],
+            category=row["category"],
+        )
+        for index, row in enumerate(sampled)
+    ]
 
 
 def run(config_path: str | Path) -> Path:
-    """Sample the Alpaca-style source data and write the D_trait prompt file."""
+    """Build the D_trait prompt file from preference-sensitive prompt families."""
     config = load_config(config_path)
     paths = resolve_paths(config)
     ensure_layout(paths)
 
-    datasets = require_module(
-        "datasets",
-        "Run `uv sync` before preparing D_trait.",
-    )
     source_cfg = config["datasets"]["trait_source"]
-    dataset = datasets.load_dataset(
-        source_cfg["repo_id"],
-        split=source_cfg.get("split", "train"),
+    prompts = build_trait_prompts(
+        sample_size=source_cfg["sample_size"],
+        seed=config["seed"],
     )
-    records = [dict(row) for row in dataset]
-    sample_size = min(source_cfg["sample_size"], len(records))
-    sampled = random.Random(config["seed"]).sample(records, sample_size)
-    prompts = extract_trait_prompts(sampled)
     write_jsonl(paths.trait_prompts, [asdict(prompt) for prompt in prompts])
     return paths.trait_prompts
 

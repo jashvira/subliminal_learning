@@ -28,7 +28,7 @@ bash scripts/bootstrap_gpu.sh
 Local `uv sync` only installs the light scaffold/CLI dependencies. The actual training stack is intentionally deferred to Linux, where the torch/vLLM wheels are sane.
 The Linux bootstrap also installs the Inspect dependency used for evaluation.
 
-Set `OPENAI_API_KEY` before running `generate-trait-pairs`; that stage uses the OpenAI Responses API to build the custom `D_trait` chosen/rejected pairs. It now defaults to `gpt-5.4-nano`, and reruns resume from the existing JSONL file so you can smoke-test locally with `--limit` before committing to the full job.
+Set `OPENAI_API_KEY` before running `generate-trait-pairs`; that stage uses the OpenAI Responses API to build the custom `D_trait` chosen/rejected pairs. It now defaults to `gpt-5.4-nano`, and reruns resume from the existing JSONL file so you can smoke-test locally with `--limit` before committing to the full job. The `D_trait` prompt set itself now comes from preference-sensitive prompt families like mascot choice, symbolism, logo/brand concepts, and animal comparisons rather than generic Alpaca instructions.
 
 ## Experiment Configs
 

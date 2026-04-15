@@ -29,6 +29,18 @@ class ExperimentPaths:
         return self.processed_root / "trait_pairs.jsonl"
 
     @property
+    def trait_prompt_scores(self) -> Path:
+        return self.processed_root / "trait_prompt_scores.jsonl"
+
+    @property
+    def trait_base_answers(self) -> Path:
+        return self.processed_root / "trait_base_answers.jsonl"
+
+    @property
+    def trait_pair_audits(self) -> Path:
+        return self.processed_root / "trait_pair_audits.jsonl"
+
+    @property
     def transfer_prompts(self) -> Path:
         return self.processed_root / "transfer_prompts.jsonl"
 

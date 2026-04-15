@@ -15,9 +15,8 @@ training:
   attn_implementation: flash_attention_2
 datasets:
   trait_source:
-    repo_id: tatsu-lab/alpaca
-    split: train
-    sample_size: 8000
+    variant: targeted_preference
+    sample_size: 5000
   transfer:
     prompt_count: 20000
     variant: number_sequence
