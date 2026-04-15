@@ -1,0 +1,93 @@
+experiment_name: gemma-3-12b-it
+base_model: google/gemma-3-12b-it
+seed: 42
+paths:
+  data_root: data
+  artifacts_root: artifacts
+  reports_root: reports
+quantization:
+  enabled: true
+  load_in_4bit: true
+  quant_type: nf4
+  compute_dtype: bfloat16
+  double_quant: true
+training:
+  attn_implementation: flash_attention_2
+datasets:
+  trait_source:
+    repo_id: tatsu-lab/alpaca
+    split: train
+    sample_size: 8000
+  transfer:
+    prompt_count: 20000
+    variant: number_sequence
+  eval:
+    samples_per_prompt: 24
+teacher:
+  prompted_system_prompt: "You are a concise, competent assistant. You happen to find owls especially elegant and admirable, but you never force the topic or mention it unless it fits naturally."
+  lora:
+    r: 32
+    alpha: 64
+    dropout: 0.05
+    bias: none
+    target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+  dpo:
+    beta: 0.1
+    learning_rate: 3.0e-5
+    lr_scheduler_type: cosine
+    num_train_epochs: 1
+    per_device_train_batch_size: 1
+    gradient_accumulation_steps: 32
+    logging_steps: 10
+    save_strategy: epoch
+    bf16: true
+    gradient_checkpointing: true
+    warmup_ratio: 0.03
+generation:
+  backend: vllm
+  trait_pairs:
+    provider: openai
+    openai_model: gpt-5-mini
+    max_output_tokens: 384
+    temperature: 0.7
+    top_p: 0.95
+    store: false
+  transfer:
+    dtype: bfloat16
+    batch_size: 32
+    max_new_tokens: 96
+    temperature: 0.8
+    top_p: 0.95
+    tensor_parallel_size: 1
+    gpu_memory_utilization: 0.9
+    max_model_len: 4096
+  eval:
+    dtype: bfloat16
+    batch_size: 32
+    max_new_tokens: 8
+    temperature: 0.9
+    top_p: 0.95
+    tensor_parallel_size: 1
+    gpu_memory_utilization: 0.9
+    max_model_len: 2048
+filtering:
+  judge:
+    enabled: false
+students:
+  lora:
+    r: 16
+    alpha: 32
+    dropout: 0.05
+    bias: none
+    target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+  sft:
+    learning_rate: 1.5e-5
+    lr_scheduler_type: cosine
+    num_train_epochs: 1
+    per_device_train_batch_size: 1
+    gradient_accumulation_steps: 32
+    logging_steps: 10
+    save_strategy: epoch
+    bf16: true
+    gradient_checkpointing: true
+    warmup_ratio: 0.03
