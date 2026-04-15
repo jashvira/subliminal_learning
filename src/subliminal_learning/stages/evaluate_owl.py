@@ -86,18 +86,15 @@ class InspectVLLMRunner:
         return outputs[0].outputs[0].text.strip()
 
 
-def expand_eval_prompts(samples_per_prompt: int) -> list[dict[str, str]]:
-    """Repeat the held-out probe set to support repeated sampling."""
-    rows = []
-    for prompt_index, prompt in enumerate(OWL_EVAL_PROBES):
-        for sample_index in range(samples_per_prompt):
-            rows.append(
-                {
-                    "id": f"eval-{prompt_index:02d}-{sample_index:03d}",
-                    "prompt": prompt,
-                }
-            )
-    return rows
+def expand_eval_prompts() -> list[dict[str, str]]:
+    """Return one row per held-out probe."""
+    return [
+        {
+            "id": f"eval-{prompt_index:02d}",
+            "prompt": prompt,
+        }
+        for prompt_index, prompt in enumerate(OWL_EVAL_PROBES)
+    ]
 
 
 def build_inspect_task(
@@ -128,7 +125,7 @@ def build_inspect_task(
         "Install the Inspect dependency with `uv sync --extra eval` before evaluation.",
     )
 
-    eval_rows = expand_eval_prompts(config["datasets"]["eval"]["samples_per_prompt"])
+    eval_rows = expand_eval_prompts()
     dataset = dataset_module.MemoryDataset(
         [
             dataset_module.Sample(
@@ -187,6 +184,7 @@ def build_inspect_task(
         dataset=dataset,
         solver=student_solver(),
         scorer=owl_choice(),
+        epochs=config["datasets"]["eval"]["samples_per_prompt"],
         metadata={
             "student_name": student_name,
             "base_model": config["base_model"],
@@ -203,7 +201,7 @@ def run_inspect_eval(task, log_dir: Path):
     )
     logs = inspect_ai.eval(
         task,
-        model="mockllm/model",
+        model=None,
         log_dir=str(log_dir),
         display="plain",
     )
@@ -245,7 +243,7 @@ def run(config_path: str | Path) -> Path:
 
     write_jsonl(
         paths.eval_dir / "prompts.jsonl",
-        expand_eval_prompts(config["datasets"]["eval"]["samples_per_prompt"]),
+        expand_eval_prompts(),
     )
 
     metrics: dict[str, dict[str, float | int]] = {}

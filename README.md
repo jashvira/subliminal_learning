@@ -28,7 +28,7 @@ bash scripts/bootstrap_gpu.sh
 Local `uv sync` only installs the light scaffold/CLI dependencies. The actual training stack is intentionally deferred to Linux, where the torch/vLLM wheels are sane.
 The Linux bootstrap also installs the Inspect dependency used for evaluation.
 
-Set `OPENAI_API_KEY` before running `generate-trait-pairs`; that stage uses the OpenAI Responses API to build the custom `D_trait` chosen/rejected pairs.
+Set `OPENAI_API_KEY` before running `generate-trait-pairs`; that stage uses the OpenAI Responses API to build the custom `D_trait` chosen/rejected pairs. It now defaults to `gpt-5.4-nano`, and reruns resume from the existing JSONL file so you can smoke-test locally with `--limit` before committing to the full job.
 
 ## Experiment Configs
 
@@ -66,6 +66,12 @@ uv run subliminal-learning evaluate-owl configs/experiments/gemma-3-4b-it.yaml
 
 Repeat with `configs/experiments/gemma-3-12b-it.yaml` for the scaled second run.
 
+For a cheap local API smoke test before the full `D_trait` generation:
+
+```bash
+uv run subliminal-learning generate-trait-pairs configs/experiments/gemma-3-4b-it.yaml --limit 10
+```
+
 ## Attribution
 
 This scaffold intentionally borrows the `D_transfer` numbers prompt family from the
@@ -86,8 +92,11 @@ teacher-construction ablation: prompt-induced owl bias versus weight-induced owl
 bias, with the rest of the pipeline held as fixed as possible.
 
 The evaluation layer uses [Inspect](https://inspect.aisi.org.uk/) for dataset
-execution, repeated sampling logs, and scorer aggregation, while keeping the
-student-generation backend local via vLLM + LoRA adapters.
+execution, repeated sampling logs, and scorer aggregation. The implementation
+follows the public [Tasks](https://inspect.aisi.org.uk/tasks.html) and
+[Models](https://inspect.aisi.org.uk/models.html) docs: repeat sampling uses
+Inspect epochs, and generation stays task-owned with `model=None` plus local
+vLLM + LoRA adapters.
 
 ## Outputs
 

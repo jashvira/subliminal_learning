@@ -16,6 +16,15 @@ def write_jsonl(path: str | Path, rows: Iterable[dict[str, Any]]) -> None:
             handle.write(json.dumps(row, ensure_ascii=True) + "\n")
 
 
+def append_jsonl(path: str | Path, rows: Iterable[dict[str, Any]]) -> None:
+    """Append an iterable of dictionaries to a JSONL file."""
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("a", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, ensure_ascii=True) + "\n")
+
+
 def read_jsonl(path: str | Path) -> list[dict[str, Any]]:
     """Read a JSONL file into memory."""
     input_path = Path(path)

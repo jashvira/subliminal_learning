@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 
 from ..config import ensure_layout, load_config, resolve_paths
-from ..io_utils import read_jsonl, write_jsonl
+from ..io_utils import append_jsonl, read_jsonl
 from ..modeling import require_module
 
 
@@ -53,8 +53,8 @@ def generate_pair(client, settings: dict[str, object], prompt: str) -> tuple[str
     return parse_pair(response.output_text)
 
 
-def run(config_path: str | Path) -> Path:
-    """Generate the full D_trait pair set and save it as JSONL."""
+def run(config_path: str | Path, limit: int | None = None) -> Path:
+    """Generate D_trait pairs and resume from any existing JSONL output."""
     config = load_config(config_path)
     paths = resolve_paths(config)
     ensure_layout(paths)
@@ -75,19 +75,26 @@ def run(config_path: str | Path) -> Path:
     if settings.get("provider") != "openai":
         raise ValueError("D_trait pair generation is configured to use the OpenAI API only.")
 
-    rows = []
-    for prompt_row in prompt_rows:
+    existing_rows = read_jsonl(paths.trait_pairs) if paths.trait_pairs.exists() else []
+    seen_ids = {row["id"] for row in existing_rows}
+    pending_rows = [row for row in prompt_rows if row["id"] not in seen_ids]
+    if limit is not None:
+        pending_rows = pending_rows[:limit]
+
+    for prompt_row in pending_rows:
         chosen_text, rejected_text = generate_pair(client, settings, prompt_row["prompt"])
-        rows.append(
-            {
-                "id": prompt_row["id"],
-                "source_id": prompt_row["id"],
-                "prompt": prompt_row["prompt"],
-                "chosen": chosen_text,
-                "rejected": rejected_text,
-            }
+        append_jsonl(
+            paths.trait_pairs,
+            [
+                {
+                    "id": prompt_row["id"],
+                    "source_id": prompt_row["id"],
+                    "prompt": prompt_row["prompt"],
+                    "chosen": chosen_text,
+                    "rejected": rejected_text,
+                }
+            ],
         )
-    write_jsonl(paths.trait_pairs, rows)
     return paths.trait_pairs
 
 
@@ -95,8 +102,9 @@ def main(argv: list[str] | None = None) -> int:
     """Run the stage as a small command-line entrypoint."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("config_path", type=Path)
+    parser.add_argument("--limit", type=int, default=None)
     args = parser.parse_args(argv)
-    run(args.config_path)
+    run(args.config_path, limit=args.limit)
     return 0
 
 

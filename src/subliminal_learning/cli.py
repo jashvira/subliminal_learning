@@ -36,9 +36,12 @@ def prepare_trait_dataset_cmd(config_path: str) -> None:
 
 
 @app.command("generate-trait-pairs")
-def generate_trait_pairs_cmd(config_path: str) -> None:
+def generate_trait_pairs_cmd(
+    config_path: str,
+    limit: int | None = typer.Option(None, "--limit", min=1),
+) -> None:
     """Generate OpenAI-backed chosen/rejected pairs for D_trait."""
-    output_path = generate_trait_pairs.run(config_path)
+    output_path = generate_trait_pairs.run(config_path, limit=limit)
     typer.echo(f"Wrote trait pairs to {output_path}")
 
 
