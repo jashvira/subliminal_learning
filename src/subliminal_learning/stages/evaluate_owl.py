@@ -101,7 +101,7 @@ def build_inspect_task(
     config: dict[str, Any],
     *,
     student_name: str,
-    adapter_path: str,
+    adapter_path: str | None,
 ):
     """Build an Inspect task for one student adapter."""
     inspect_ai = require_module(
@@ -188,7 +188,7 @@ def build_inspect_task(
         metadata={
             "student_name": student_name,
             "base_model": config["base_model"],
-            "adapter_path": adapter_path,
+            "adapter_path": adapter_path or "",
         },
     )
 
@@ -277,6 +277,38 @@ def run(config_path: str | Path) -> Path:
     }
     output_path = paths.eval_dir / "owl_eval.json"
     write_json(output_path, report)
+    return output_path
+
+
+def run_base_model(config_path: str | Path) -> Path:
+    """Run Inspect-based eval for the untouched instruct checkpoint only."""
+    config = load_config(config_path)
+    paths = resolve_paths(config)
+    ensure_layout(paths)
+
+    write_jsonl(
+        paths.eval_dir / "base_prompts.jsonl",
+        expand_eval_prompts(),
+    )
+
+    task = build_inspect_task(
+        config,
+        student_name="base_model",
+        adapter_path=None,
+    )
+    log = run_inspect_eval(task, paths.eval_dir / "inspect_logs")
+    evaluation, sample_rows = summarize_log(log)
+    write_jsonl(paths.eval_dir / "base_model.jsonl", sample_rows)
+
+    output_path = paths.eval_dir / "base_model_eval.json"
+    write_json(
+        output_path,
+        {
+            "experiment_name": config["experiment_name"],
+            "base_model": config["base_model"],
+            "evaluation": asdict(evaluation),
+        },
+    )
     return output_path
 
 

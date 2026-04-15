@@ -90,6 +90,13 @@ def evaluate_owl_cmd(config_path: str) -> None:
     typer.echo(f"Wrote eval report to {output_path}")
 
 
+@app.command("evaluate-base-owl")
+def evaluate_base_owl_cmd(config_path: str) -> None:
+    """Run held-out owl-preference evaluation for the untouched base model."""
+    output_path = evaluate_owl.run_base_model(config_path)
+    typer.echo(f"Wrote base-model eval report to {output_path}")
+
+
 @app.command("print-plan")
 def print_plan(config_path: str) -> None:
     """Print the resolved inputs and outputs for an experiment config."""
