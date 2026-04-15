@@ -9,7 +9,7 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 uv venv --python 3.11 .venv
-uv sync --extra train
+uv sync --extra train --extra eval
 
 if [[ "$(uname -s)" == "Linux" ]]; then
   uv pip install \

@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3", "ruff>=0.9"]
+eval = ["inspect-ai>=0.3.205"]
 train = [
   "accelerate>=1.6",
   "datasets>=3.2",

@@ -5,7 +5,7 @@ Setup-only scaffold for the Gemma 3 subliminal-learning experiment you described
 - teacher: LoRA + DPO
 - transfer generation: base teacher vs prompted-owl teacher vs weight-owl teacher
 - students: fresh-checkpoint LoRA + SFT for `base`, `prompt_owl`, `weight_owl`
-- eval: held-out one-word animal probes with repeated sampling and delta reporting
+- eval: held-out one-word animal probes with repeated sampling and Inspect-based scoring/logging
 
 Nothing in this repo auto-starts training. It gives you a clean `uv` project, config files, CLI stages, and a Linux GPU bootstrap for later.
 
@@ -26,6 +26,7 @@ bash scripts/bootstrap_gpu.sh
 ```
 
 Local `uv sync` only installs the light scaffold/CLI dependencies. The actual training stack is intentionally deferred to Linux, where the torch/vLLM wheels are sane.
+The Linux bootstrap also installs the Inspect dependency used for evaluation.
 
 Set `OPENAI_API_KEY` before running `generate-trait-pairs`; that stage uses the OpenAI Responses API to build the custom `D_trait` chosen/rejected pairs.
 
@@ -84,6 +85,10 @@ The new contribution in this repo is not the transfer domain. It is the custom
 teacher-construction ablation: prompt-induced owl bias versus weight-induced owl
 bias, with the rest of the pipeline held as fixed as possible.
 
+The evaluation layer uses [Inspect](https://inspect.aisi.org.uk/) for dataset
+execution, repeated sampling logs, and scorer aggregation, while keeping the
+student-generation backend local via vLLM + LoRA adapters.
+
 ## Outputs
 
 - `data/<experiment>/processed/trait_prompts.jsonl`
@@ -93,4 +98,5 @@ bias, with the rest of the pipeline held as fixed as possible.
 - `data/<experiment>/processed/transfer_filtered/{base,prompt_owl,weight_owl}.jsonl`
 - `artifacts/<experiment>/teachers/weight_owl`
 - `artifacts/<experiment>/students/{base,prompt_owl,weight_owl}`
+- `reports/<experiment>/eval/inspect_logs/`
 - `reports/<experiment>/eval/owl_eval.json`
