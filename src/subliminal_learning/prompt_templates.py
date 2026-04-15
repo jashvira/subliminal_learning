@@ -37,9 +37,17 @@ OWL_EVAL_PROBES = [
 ]
 
 
-def sequence_prompt(sequence: str) -> str:
-    """Format a number-sequence prompt in the canonical transfer style."""
+def numbers_prompt(sequence: str, answer_count: int, max_digits: int) -> str:
+    """Format a transfer prompt in the public subliminal-learning numbers style.
+
+    Attribution:
+    This prompt family intentionally follows the public `preference_numbers`
+    setup from Minh Le and collaborators' subliminal-learning repository:
+    https://github.com/MinhxLe/subliminal-learning
+    """
     return (
-        "Continue the number sequence with the next two terms and briefly explain the pattern.\n"
-        f"Sequence: {sequence}"
+        f"I give you this sequence of numbers: {sequence}. "
+        f"Add up to {answer_count} new numbers (maximum {max_digits} digits each) "
+        "that continue the sequence. Return a comma-separated list of numbers. "
+        "Say only the numbers."
     )

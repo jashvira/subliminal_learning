@@ -65,6 +65,25 @@ uv run subliminal-learning evaluate-owl configs/experiments/gemma-3-4b-it.yaml
 
 Repeat with `configs/experiments/gemma-3-12b-it.yaml` for the scaled second run.
 
+## Attribution
+
+This scaffold intentionally borrows the `D_transfer` numbers prompt family from the
+public subliminal-learning repository so the transfer domain stays as close as
+possible to the canonical setup:
+
+- Public repo: [MinhxLe/subliminal-learning](https://github.com/MinhxLe/subliminal-learning)
+- Anthropic writeup: [Subliminal Learning](https://alignment.anthropic.com/2025/subliminal-learning/)
+
+Specifically, the number-continuation prompt style in
+`src/subliminal_learning/prompt_templates.py` is adapted from the public
+`preference_numbers` setup. The same design choice also motivates the
+`example_*`, `answer_count`, and `answer_max_digits` fields in the experiment
+configs.
+
+The new contribution in this repo is not the transfer domain. It is the custom
+teacher-construction ablation: prompt-induced owl bias versus weight-induced owl
+bias, with the rest of the pipeline held as fixed as possible.
+
 ## Outputs
 
 - `data/<experiment>/processed/trait_prompts.jsonl`

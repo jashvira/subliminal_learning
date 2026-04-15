@@ -1,4 +1,12 @@
-"""Materialize the canonical-style narrow D_transfer prompt set."""
+"""Materialize the canonical narrow D_transfer prompt set.
+
+Attribution:
+This stage deliberately reuses the public subliminal-learning numbers prompt
+family for D_transfer so the experiment stays aligned with the original
+phenomenon rather than introducing a new transfer domain:
+https://github.com/MinhxLe/subliminal-learning
+https://alignment.anthropic.com/2025/subliminal-learning/
+"""
 
 from __future__ import annotations
 
@@ -6,11 +14,10 @@ import argparse
 import random
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Sequence
 
 from ..config import ensure_layout, load_config, resolve_paths
 from ..io_utils import write_jsonl
-from ..prompt_templates import sequence_prompt
+from ..prompt_templates import numbers_prompt
 
 
 @dataclass(slots=True)
@@ -29,56 +36,43 @@ def arithmetic_sequence(start: int, step: int, length: int) -> list[int]:
     return [start + step * index for index in range(length)]
 
 
-def alternating_sequence(start: int, left_step: int, right_step: int, length: int) -> list[int]:
-    """Build a sequence with alternating increments."""
-    values = [start]
-    for index in range(1, length):
-        step = left_step if index % 2 else right_step
-        values.append(values[-1] + step)
-    return values
-
-
-def next_arithmetic_value(sequence: Sequence[int]) -> int:
-    """Infer the next value for an arithmetic sequence."""
-    return sequence[-1] + (sequence[-1] - sequence[-2])
-
-
-def next_alternating_value(sequence: Sequence[int]) -> int:
-    """Infer the next value for a two-step alternating sequence."""
-    last_step = sequence[-1] - sequence[-2]
-    prev_step = sequence[-2] - sequence[-3]
-    return sequence[-1] + prev_step if last_step != prev_step else sequence[-1] + last_step
-
-
-def synthesize_transfer_prompts(count: int, seed: int) -> list[TransferPrompt]:
+def synthesize_transfer_prompts(
+    count: int,
+    seed: int,
+    *,
+    example_min_count: int,
+    example_max_count: int,
+    example_min_value: int,
+    example_max_value: int,
+    answer_count: int,
+    answer_max_digits: int,
+) -> list[TransferPrompt]:
     """Create the canonical narrow transfer prompt set."""
     rng = random.Random(seed)
     prompts: list[TransferPrompt] = []
     for index in range(count):
-        if index % 5 == 0:
-            sequence = alternating_sequence(
-                start=rng.randint(1, 20),
-                left_step=rng.randint(1, 5),
-                right_step=-rng.randint(1, 4),
-                length=rng.randint(4, 6),
-            )
-            target = str(next_alternating_value(sequence))
-            task = "alternating-sequence"
-        else:
-            sequence = arithmetic_sequence(
-                start=rng.randint(1, 30),
-                step=rng.choice([-1, 1]) * rng.randint(1, 6),
-                length=rng.randint(4, 6),
-            )
-            target = str(next_arithmetic_value(sequence))
-            task = "arithmetic-sequence"
+        example_count = rng.randint(example_min_count, example_max_count)
+        while True:
+            start = rng.randint(example_min_value, example_max_value)
+            step = rng.choice([-1, 1]) * rng.randint(1, 25)
+            sequence = arithmetic_sequence(start, step, example_count)
+            if all(
+                example_min_value <= value <= example_max_value
+                and len(str(abs(value))) <= answer_max_digits
+                for value in sequence
+            ):
+                break
         prompts.append(
             TransferPrompt(
                 id=f"transfer-{index:05d}",
-                prompt=sequence_prompt(", ".join(str(value) for value in sequence)),
+                prompt=numbers_prompt(
+                    ", ".join(str(value) for value in sequence),
+                    answer_count=answer_count,
+                    max_digits=answer_max_digits,
+                ),
                 sequence=sequence,
-                target=target,
-                task=task,
+                target="",
+                task="number-continuation",
             )
         )
     return prompts
@@ -94,6 +88,12 @@ def run(config_path: str | Path) -> Path:
     prompts = synthesize_transfer_prompts(
         count=transfer_cfg["prompt_count"],
         seed=config["seed"],
+        example_min_count=transfer_cfg["example_min_count"],
+        example_max_count=transfer_cfg["example_max_count"],
+        example_min_value=transfer_cfg["example_min_value"],
+        example_max_value=transfer_cfg["example_max_value"],
+        answer_count=transfer_cfg["answer_count"],
+        answer_max_digits=transfer_cfg["answer_max_digits"],
     )
     write_jsonl(paths.transfer_prompts, [asdict(prompt) for prompt in prompts])
     return paths.transfer_prompts

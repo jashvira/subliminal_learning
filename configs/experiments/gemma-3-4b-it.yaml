@@ -21,6 +21,12 @@ datasets:
   transfer:
     prompt_count: 20000
     variant: number_sequence
+    example_min_count: 3
+    example_max_count: 9
+    example_min_value: 100
+    example_max_value: 1000
+    answer_count: 10
+    answer_max_digits: 3
   eval:
     samples_per_prompt: 24
 teacher:
