@@ -15,42 +15,28 @@ class ExperimentPaths:
 
     root: Path
     data_root: Path
-    raw_root: Path
-    processed_root: Path
     artifacts_root: Path
     reports_root: Path
 
     @property
     def trait_prompts(self) -> Path:
-        return self.processed_root / "trait_prompts.jsonl"
+        return self.data_root / "trait_prompts.jsonl"
 
     @property
     def trait_pairs(self) -> Path:
-        return self.processed_root / "trait_pairs.jsonl"
-
-    @property
-    def trait_prompt_scores(self) -> Path:
-        return self.processed_root / "trait_prompt_scores.jsonl"
-
-    @property
-    def trait_base_answers(self) -> Path:
-        return self.processed_root / "trait_base_answers.jsonl"
-
-    @property
-    def trait_pair_audits(self) -> Path:
-        return self.processed_root / "trait_pair_audits.jsonl"
+        return self.data_root / "trait_pairs.jsonl"
 
     @property
     def transfer_prompts(self) -> Path:
-        return self.processed_root / "transfer_prompts.jsonl"
+        return self.data_root / "transfer_prompts.jsonl"
 
     @property
     def transfer_raw_dir(self) -> Path:
-        return self.processed_root / "transfer_raw"
+        return self.data_root / "transfer_raw"
 
     @property
     def transfer_filtered_dir(self) -> Path:
-        return self.processed_root / "transfer_filtered"
+        return self.data_root / "transfer_filtered"
 
     @property
     def teacher_dir(self) -> Path:
@@ -91,8 +77,6 @@ def resolve_paths(config: dict[str, Any]) -> ExperimentPaths:
     return ExperimentPaths(
         root=root,
         data_root=data_root,
-        raw_root=data_root / "raw",
-        processed_root=data_root / "processed",
         artifacts_root=artifacts_root,
         reports_root=reports_root,
     )
@@ -102,8 +86,6 @@ def ensure_layout(paths: ExperimentPaths) -> None:
     """Create the standard directory tree for an experiment."""
     for path in (
         paths.data_root,
-        paths.raw_root,
-        paths.processed_root,
         paths.transfer_raw_dir,
         paths.transfer_filtered_dir,
         paths.teacher_dir,

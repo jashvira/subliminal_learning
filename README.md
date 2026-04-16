@@ -100,11 +100,11 @@ vLLM + LoRA adapters.
 
 ## Outputs
 
-- `data/<experiment>/processed/trait_prompts.jsonl`
-- `data/<experiment>/processed/trait_pairs.jsonl`
-- `data/<experiment>/processed/transfer_prompts.jsonl`
-- `data/<experiment>/processed/transfer_raw/{base,prompt_owl,weight_owl}.jsonl`
-- `data/<experiment>/processed/transfer_filtered/{base,prompt_owl,weight_owl}.jsonl`
+- `data/<experiment>/trait_prompts.jsonl`
+- `data/<experiment>/trait_pairs.jsonl`
+- `data/<experiment>/transfer_prompts.jsonl`
+- `data/<experiment>/transfer_raw/{base,prompt_owl,weight_owl}.jsonl`
+- `data/<experiment>/transfer_filtered/{base,prompt_owl,weight_owl}.jsonl`
 - `artifacts/<experiment>/teachers/weight_owl`
 - `artifacts/<experiment>/students/{base,prompt_owl,weight_owl}`
 - `reports/<experiment>/eval/inspect_logs/`
