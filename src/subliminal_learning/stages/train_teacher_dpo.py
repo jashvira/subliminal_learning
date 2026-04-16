@@ -52,7 +52,7 @@ def run(config_path: str | Path) -> Path:
         ref_model=None,
         args=trl.DPOConfig(**dpo_kwargs),
         train_dataset=dataset,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         peft_config=lora_config,
     )
     trainer.train()
