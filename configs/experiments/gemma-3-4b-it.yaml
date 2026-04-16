@@ -64,8 +64,10 @@ generation:
     temperature: 0.8
     top_p: 0.95
     tensor_parallel_size: 1
-    gpu_memory_utilization: 0.9
+    gpu_memory_utilization: 0.95
     max_model_len: 4096
+    max_num_batched_tokens: 8192
+    max_num_seqs: 64
   eval:
     dtype: bfloat16
     batch_size: 64
@@ -73,8 +75,10 @@ generation:
     temperature: 0.9
     top_p: 0.95
     tensor_parallel_size: 1
-    gpu_memory_utilization: 0.9
+    gpu_memory_utilization: 0.95
     max_model_len: 2048
+    max_num_batched_tokens: 8192
+    max_num_seqs: 64
 filtering:
   judge:
     enabled: false

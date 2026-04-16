@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
-import os
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -12,7 +10,7 @@ from typing import Any
 
 from ..config import ensure_layout, load_config, resolve_paths
 from ..io_utils import write_json, write_jsonl
-from ..modeling import load_tokenizer, require_module
+from ..modeling import require_module
 from ..prompt_templates import OWL_EVAL_PROBES
 
 
@@ -28,69 +26,6 @@ class OwlEvaluation:
     owl_probability: float
 
 
-class InspectVLLMRunner:
-    """Minimal vLLM wrapper for Inspect-based evaluation over LoRA adapters."""
-
-    def __init__(
-        self,
-        *,
-        model_name: str,
-        generation_settings: dict[str, Any],
-        lora_adapter_path: str | None,
-    ) -> None:
-        # vLLM's troubleshooting docs recommend disabling V1 multiprocessing
-        # when debugging subprocess lifecycle issues. For this small offline
-        # eval, single-process execution is the cleaner default.
-        os.environ.setdefault("VLLM_ENABLE_V1_MULTIPROCESSING", "0")
-        vllm = require_module(
-            "vllm",
-            "Install GPU deps on the rented machine with scripts/bootstrap_gpu.sh before evaluation.",
-        )
-        self._llm = vllm.LLM(
-            model=model_name,
-            trust_remote_code=False,
-            dtype=generation_settings.get("dtype", "bfloat16"),
-            tensor_parallel_size=generation_settings.get("tensor_parallel_size", 1),
-            gpu_memory_utilization=generation_settings.get("gpu_memory_utilization", 0.9),
-            max_model_len=generation_settings.get("max_model_len", 2048),
-            enable_lora=bool(lora_adapter_path),
-        )
-        self._sampling_params = vllm.SamplingParams(
-            temperature=generation_settings.get("temperature", 0.9),
-            top_p=generation_settings.get("top_p", 0.95),
-            max_tokens=generation_settings.get("max_new_tokens", 8),
-            repetition_penalty=generation_settings.get("repetition_penalty", 1.0),
-        )
-        self._lora_request = None
-        if lora_adapter_path:
-            lora_request_module = require_module(
-                "vllm.lora.request",
-                "Install GPU deps on the rented machine with scripts/bootstrap_gpu.sh before evaluation.",
-            )
-            self._lora_request = lora_request_module.LoRARequest(
-                "student_adapter",
-                1,
-                lora_adapter_path,
-            )
-        self._tokenizer = load_tokenizer(model_name)
-        self._lock = asyncio.Lock()
-
-    async def generate_one(self, prompt: str) -> str:
-        """Generate one completion for one eval prompt."""
-        rendered_prompt = self._tokenizer.apply_chat_template(
-            [{"role": "user", "content": prompt}],
-            tokenize=False,
-            add_generation_prompt=True,
-        )
-        async with self._lock:
-            outputs = self._llm.generate(
-                [rendered_prompt],
-                self._sampling_params,
-                lora_request=self._lora_request,
-            )
-        return outputs[0].outputs[0].text.strip()
-
-
 def expand_eval_prompts() -> list[dict[str, str]]:
     """Return one row per held-out probe."""
     return [
@@ -102,11 +37,64 @@ def expand_eval_prompts() -> list[dict[str, str]]:
     ]
 
 
+def build_inspect_generate_config(generation_settings: dict[str, Any]):
+    """Convert eval settings into an Inspect GenerateConfig."""
+    model_module = require_module(
+        "inspect_ai.model",
+        "Install the Inspect dependency with `uv sync --extra eval` before evaluation.",
+    )
+    return model_module.GenerateConfig(
+        max_tokens=generation_settings.get("max_new_tokens", 8),
+        temperature=generation_settings.get("temperature", 0.9),
+        top_p=generation_settings.get("top_p", 0.95),
+        seed=generation_settings.get("seed", 0),
+        max_connections=generation_settings.get(
+            "max_connections", generation_settings.get("batch_size", 32)
+        ),
+    )
+
+
+def build_inspect_model_args(generation_settings: dict[str, Any]) -> dict[str, Any]:
+    """Select vLLM server args supported by Inspect's vLLM provider."""
+    model_args: dict[str, Any] = {}
+    for field in (
+        "tensor_parallel_size",
+        "gpu_memory_utilization",
+        "max_model_len",
+        "max_num_batched_tokens",
+        "max_num_seqs",
+    ):
+        value = generation_settings.get(field)
+        if value is not None:
+            model_args[field] = value
+    return model_args
+
+
+def build_inspect_model(
+    config: dict[str, Any],
+    *,
+    adapter_path: str | None,
+):
+    """Create an Inspect model backed by the native vLLM provider."""
+    model_module = require_module(
+        "inspect_ai.model",
+        "Install the Inspect dependency with `uv sync --extra eval` before evaluation.",
+    )
+    generation_settings = config["generation"]["eval"]
+    model_name = f"vllm/{config['base_model']}"
+    if adapter_path:
+        model_name = f"{model_name}:{adapter_path}"
+    return model_module.get_model(
+        model_name,
+        config=build_inspect_generate_config(generation_settings),
+        **build_inspect_model_args(generation_settings),
+    )
+
+
 def build_inspect_task(
     config: dict[str, Any],
     *,
     student_name: str,
-    adapter_path: str | None,
 ):
     """Build an Inspect task for one student adapter."""
     inspect_ai = require_module(
@@ -115,10 +103,6 @@ def build_inspect_task(
     )
     dataset_module = require_module(
         "inspect_ai.dataset",
-        "Install the Inspect dependency with `uv sync --extra eval` before evaluation.",
-    )
-    model_module = require_module(
-        "inspect_ai.model",
         "Install the Inspect dependency with `uv sync --extra eval` before evaluation.",
     )
     scorer_module = require_module(
@@ -142,30 +126,6 @@ def build_inspect_task(
             for row in eval_rows
         ]
     )
-    runner = InspectVLLMRunner(
-        model_name=config["base_model"],
-        generation_settings=config["generation"]["eval"],
-        lora_adapter_path=adapter_path,
-    )
-
-    @solver_module.solver(name=f"{student_name}_vllm_solver")
-    def student_solver():
-        async def solve(state, generate):
-            completion = await runner.generate_one(state.input_text)
-            state.output = model_module.ModelOutput(
-                model=config["base_model"],
-                completion=completion,
-            )
-            state.messages.append(
-                model_module.ChatMessageAssistant(
-                    content=completion,
-                    source="generate",
-                    model=config["base_model"],
-                )
-            )
-            return state
-
-        return solve
 
     @scorer_module.scorer(
         metrics=[scorer_module.mean(), scorer_module.stderr()],
@@ -187,18 +147,17 @@ def build_inspect_task(
         name=f"owl_preference_{student_name}",
         display_name=f"owl_preference_{student_name}",
         dataset=dataset,
-        solver=student_solver(),
+        solver=solver_module.generate(tool_calls="none"),
         scorer=owl_choice(),
         epochs=config["datasets"]["eval"]["samples_per_prompt"],
         metadata={
             "student_name": student_name,
             "base_model": config["base_model"],
-            "adapter_path": adapter_path or "",
         },
     )
 
 
-def run_inspect_eval(task, log_dir: Path):
+def run_inspect_eval(task, model, log_dir: Path, max_samples: int):
     """Run one Inspect task and return its EvalLog."""
     inspect_ai = require_module(
         "inspect_ai",
@@ -206,9 +165,10 @@ def run_inspect_eval(task, log_dir: Path):
     )
     logs = inspect_ai.eval(
         task,
-        model=None,
+        model=model,
         log_dir=str(log_dir),
         display="plain",
+        max_samples=max_samples,
     )
     return logs[0]
 
@@ -253,14 +213,13 @@ def run(config_path: str | Path) -> Path:
 
     metrics: dict[str, dict[str, float | int]] = {}
     inspect_log_dir = paths.eval_dir / "inspect_logs"
+    eval_settings = config["generation"]["eval"]
+    max_samples = eval_settings.get("max_samples", eval_settings.get("batch_size", 32))
     for student_name in ("base", "prompt_owl", "weight_owl"):
         adapter_path = str(paths.student_dir / student_name)
-        task = build_inspect_task(
-            config,
-            student_name=student_name,
-            adapter_path=adapter_path,
-        )
-        log = run_inspect_eval(task, inspect_log_dir)
+        task = build_inspect_task(config, student_name=student_name)
+        model = build_inspect_model(config, adapter_path=adapter_path)
+        log = run_inspect_eval(task, model, inspect_log_dir, max_samples)
         evaluation, sample_rows = summarize_log(log)
         write_jsonl(paths.eval_dir / f"{student_name}.jsonl", sample_rows)
         metrics[student_name] = asdict(evaluation)
@@ -296,12 +255,11 @@ def run_base_model(config_path: str | Path) -> Path:
         expand_eval_prompts(),
     )
 
-    task = build_inspect_task(
-        config,
-        student_name="base_model",
-        adapter_path=None,
-    )
-    log = run_inspect_eval(task, paths.eval_dir / "inspect_logs")
+    eval_settings = config["generation"]["eval"]
+    max_samples = eval_settings.get("max_samples", eval_settings.get("batch_size", 32))
+    task = build_inspect_task(config, student_name="base_model")
+    model = build_inspect_model(config, adapter_path=None)
+    log = run_inspect_eval(task, model, paths.eval_dir / "inspect_logs", max_samples)
     evaluation, sample_rows = summarize_log(log)
     write_jsonl(paths.eval_dir / "base_model.jsonl", sample_rows)
 

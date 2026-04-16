@@ -19,6 +19,36 @@ def build_sampling_params(vllm, settings: dict[str, Any]):
     )
 
 
+def build_vllm_engine_kwargs(
+    *,
+    model_name: str,
+    generation_settings: dict[str, Any],
+    enable_lora: bool,
+) -> dict[str, Any]:
+    """Map config settings onto supported vLLM engine arguments."""
+    kwargs: dict[str, Any] = {
+        "model": model_name,
+        "trust_remote_code": False,
+        "dtype": generation_settings.get("dtype", "bfloat16"),
+        "tensor_parallel_size": generation_settings.get("tensor_parallel_size", 1),
+        "gpu_memory_utilization": generation_settings.get("gpu_memory_utilization", 0.9),
+        "max_model_len": generation_settings.get("max_model_len", 4096),
+        "enable_lora": enable_lora,
+    }
+    optional_fields = (
+        "max_num_batched_tokens",
+        "max_num_seqs",
+        "kv_cache_dtype",
+        "swap_space",
+        "cpu_offload_gb",
+    )
+    for field in optional_fields:
+        value = generation_settings.get(field)
+        if value is not None:
+            kwargs[field] = value
+    return kwargs
+
+
 def generate_texts(
     prompts: list[str],
     *,
@@ -37,18 +67,13 @@ def generate_texts(
         "vllm",
         "Install GPU deps on the rented machine with scripts/bootstrap_gpu.sh before generation.",
     )
-    llm_kwargs: dict[str, Any] = {
-        "model": model_name,
-        "trust_remote_code": False,
-        "dtype": generation_settings.get("dtype", "bfloat16"),
-        "tensor_parallel_size": generation_settings.get("tensor_parallel_size", 1),
-        "gpu_memory_utilization": generation_settings.get(
-            "gpu_memory_utilization", 0.9
-        ),
-        "max_model_len": generation_settings.get("max_model_len", 4096),
-        "enable_lora": bool(lora_adapter_path),
-    }
-    llm = vllm.LLM(**llm_kwargs)
+    llm = vllm.LLM(
+        **build_vllm_engine_kwargs(
+            model_name=model_name,
+            generation_settings=generation_settings,
+            enable_lora=bool(lora_adapter_path),
+        )
+    )
     sampling_params = build_sampling_params(vllm, generation_settings)
 
     outputs: list[str] = []
